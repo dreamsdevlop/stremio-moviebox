@@ -1,0 +1,49 @@
+[project]
+name = "stremio-moviebox"
+version = "1.1.0"
+description = "Provider Stremio Addon Stream movies and TV series directly in Stremio"
+readme = "README.md"
+license = "Unlicense"
+
+requires-python = ">=3.12"
+classifiers = [
+    "License :: OSI Approved :: The Unlicense (Unlicense)",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+    "httpx[socks]>=0.28.1",
+    "pydantic>=2.11.7",
+    "fastapi[standard]>=0.104.1",
+    "uvicorn>=0.24.0",
+]
+
+
+[dependency-groups]
+dev = [
+    "ruff>=0.12.8",
+]
+
+[tool.ruff]
+line-length = 82
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "I",
+    "FA",
+    "UP",
+    "RUF100",
+]
+ignore = [
+    "UP031",
+    "F401"
+]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true

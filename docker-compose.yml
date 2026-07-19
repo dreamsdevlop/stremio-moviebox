@@ -1,0 +1,14 @@
+services:
+  stremio-moviebox:
+    image: mesamirh/stremio-moviebox:latest
+    build: .
+    container_name: stremio-moviebox
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8000}:${PORT:-8000}"
+    environment:
+      - PORT=${PORT:-8000}
+      - HOST=${HOST:-0.0.0.0}
+      - REQUEST_TIMEOUT=${REQUEST_TIMEOUT:-15}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+
