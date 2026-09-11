@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Any, List, Optional
 
-from pydantic import BaseModel, Field, HttpUrl, field_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
 
 class PagerModel(BaseModel):
@@ -10,6 +10,8 @@ class PagerModel(BaseModel):
     page: int = 1
 
 class SubjectModel(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     subject_id: str = Field(alias="subjectId")
     title: str
     release_date: date | str = Field(alias="releaseDate", default="1970-01-01")

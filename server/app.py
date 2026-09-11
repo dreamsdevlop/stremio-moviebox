@@ -1,4 +1,5 @@
 import asyncio
+import time
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
@@ -26,10 +27,29 @@ app.add_middleware(
 )
 app.include_router(main_router)
 
+_CACHE: dict[str, tuple[float, object]] = {}
+_CACHE_TTL = 90
+_CACHE_LOCK = asyncio.Lock()
+
+async def _cached(key: str, loader):
+    now = time.monotonic()
+    hit = _CACHE.get(key)
+    if hit and now - hit[0] < _CACHE_TTL:
+        return hit[1]
+    async with _CACHE_LOCK:
+        hit = _CACHE.get(key)
+        if hit and time.monotonic() - hit[0] < _CACHE_TTL:
+            return hit[1]
+        value = await loader()
+        _CACHE[key] = (time.monotonic(), value)
+        return value
+
 
 def _poster(item: dict) -> str | None:
     for key in ("cover", "coverUrl", "poster", "posterUrl", "image", "thumbnail"):
         value = item.get(key)
+        if isinstance(value, dict):
+            value = value.get("url") or value.get("resourceLink")
         if value:
             return str(value)
     return None
@@ -42,39 +62,33 @@ async def root():
 
 @app.get("/api/search")
 async def api_search(q: str = Query(min_length=1, max_length=120), page: int = Query(1, ge=1, le=100)):
-
-    client = MovieBoxClient()
-    await client.start()
-    try:
-        parser = MovieBoxParser(client)
-        output = []
-        seen = set()
-        requests = [
-            asyncio.wait_for(parser.search(q, is_movie=kind, page=page, per_page=20), 8)
-            for kind in (True, False)
-        ]
-        results = await asyncio.gather(*requests, return_exceptions=True)
-        for is_movie, result in zip((True, False), results):
-            if isinstance(result, Exception):
-                logger.warning("MovieBox search failed for %s: %s", q, result)
-                continue
-            for item in result.items:
-                key = str(item.subject_id)
-                if key in seen:
+    key = f"search:{q.strip().lower()}:{page}"
+    async def load():
+        client = MovieBoxClient()
+        await client.start()
+        try:
+            parser = MovieBoxParser(client)
+            output, seen = [], set()
+            requests = [asyncio.wait_for(parser.search(q, is_movie=kind, page=page, per_page=20), 8) for kind in (True, False)]
+            results = await asyncio.gather(*requests, return_exceptions=True)
+            for is_movie, result in zip((True, False), results):
+                if isinstance(result, Exception):
+                    logger.warning("MovieBox search failed for %s: %s", q, result)
                     continue
-                seen.add(key)
-                raw = item.model_dump(by_alias=True)
-                output.append({
-                    "id": key,
-                    "title": item.title,
-                    "year": item.year,
-                    "type": "movie" if is_movie else "series",
-                    "poster": _poster(raw),
-                    "corner": item.corner,
-                })
-        return {"items": output, "page": page, "has_more": len(output) >= 10}
-    finally:
-        await client.close()
+                for item in result.items:
+                    if str(item.subject_id) in seen:
+                        continue
+                    seen.add(str(item.subject_id))
+                    raw = item.model_dump(by_alias=True)
+                    output.append({"id": str(item.subject_id), "title": item.title, "year": item.year, "type": "movie" if is_movie else "series", "poster": _poster(raw), "corner": item.corner})
+            return {"items": output, "page": page, "has_more": len(output) >= 10}
+        finally:
+            await client.close()
+    try:
+        return await _cached(key, load)
+    except Exception as exc:
+        logger.error("Search failed after host fallback: %s", exc)
+        raise HTTPException(status_code=502, detail="MovieBox is temporarily unavailable. Please retry shortly.") from exc
 
 
 @app.get("/api/catalog")
