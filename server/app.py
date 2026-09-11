@@ -90,7 +90,7 @@ async def api_streams(
     try:
         parser = MovieBoxParser(client)
         is_movie = media_type == "movie"
-        resolutions = [0, 2160, 1080, 720, 480] if is_movie else [2160, 1080, 720, 480, 0]
+        resolutions = [2160, 1080, 720, 480, 0] if is_movie else [2160, 1080, 720, 480, 0]
         links = []
         for resolution in resolutions:
             try:
