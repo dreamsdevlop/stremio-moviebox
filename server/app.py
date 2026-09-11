@@ -176,6 +176,17 @@ async def get_logo():
     return FileResponse(str(ROOT / "assets" / "logo.png"), media_type="image/png")
 
 
+@app.get("/status")
+async def status_check():
+    return {
+        "status": "operational",
+        "provider": "MovieBox authorized backend",
+        "cache_entries": len(_CACHE),
+        "cache_ttl_seconds": _CACHE_TTL,
+        "credentials_exposed_to_browser": False,
+    }
+
+
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}

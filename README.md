@@ -92,3 +92,10 @@ The project uses `uv` for dependency management.
 1. Install `uv`: `pip install uv`
 2. Sync dependencies: `uv sync`
 3. Run the development server: `uv run fastapi dev server/app.py`
+
+
+## Production safety and manual provider configuration
+
+The browser never receives provider credentials. The server uses the existing signed MovieBox backend client, with host fallback, bounded timeouts, short-lived caching, and graceful `502` responses during upstream outages. The `/status` endpoint reports operational state without revealing secrets.
+
+If you add another provider manually, use only an API and media source that you own or are authorized to use. Copy `.env.example` to your deployment configuration, set credentials as server-side Vercel environment variables, and never commit them to GitHub or place them in `web/index.html`. A safe provider adapter should enforce timeouts, rate limits, response validation, source labeling, and a fallback to the primary MovieBox provider.
