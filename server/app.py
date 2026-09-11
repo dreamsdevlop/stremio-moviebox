@@ -41,7 +41,8 @@ async def root():
 
 
 @app.get("/api/search")
-async def api_search(q: str = Query(min_length=1, max_length=120)):
+async def api_search(q: str = Query(min_length=1, max_length=120), page: int = Query(1, ge=1, le=100)):
+
     client = MovieBoxClient()
     await client.start()
     try:
@@ -49,7 +50,7 @@ async def api_search(q: str = Query(min_length=1, max_length=120)):
         output = []
         seen = set()
         requests = [
-            asyncio.wait_for(parser.search(q, is_movie=kind, per_page=20), 8)
+            asyncio.wait_for(parser.search(q, is_movie=kind, page=page, per_page=20), 8)
             for kind in (True, False)
         ]
         results = await asyncio.gather(*requests, return_exceptions=True)
@@ -71,7 +72,36 @@ async def api_search(q: str = Query(min_length=1, max_length=120)):
                     "poster": _poster(raw),
                     "corner": item.corner,
                 })
-        return {"items": output}
+        return {"items": output, "page": page, "has_more": len(output) >= 10}
+    finally:
+        await client.close()
+
+
+@app.get("/api/catalog")
+async def api_catalog(page: int = Query(1, ge=1, le=20)):
+    """Return all authorized MovieBox home rows with poster and genre metadata."""
+    client = MovieBoxClient()
+    await client.start()
+    try:
+        data = await client.get(f"/wefeed-mobile-bff/tab-operating?page={page}&tabId=0&version=")
+        rows = []
+        for row in data.get("items", []):
+            subjects = []
+            for raw in row.get("subjects") or []:
+                if not raw.get("subjectId") or not raw.get("title"):
+                    continue
+                cover = raw.get("cover") or {}
+                subjects.append({
+                    "id": str(raw["subjectId"]),
+                    "title": raw.get("title", ""),
+                    "year": str(raw.get("releaseDate", ""))[:4],
+                    "type": "series" if raw.get("subjectType") == 2 else "movie",
+                    "genre": raw.get("genre", ""),
+                    "poster": cover.get("url") or (raw.get("image") or {}).get("url"),
+                })
+            if subjects:
+                rows.append({"title": row.get("title") or "MovieBox", "items": subjects})
+        return {"rows": rows, "page": page}
     finally:
         await client.close()
 
